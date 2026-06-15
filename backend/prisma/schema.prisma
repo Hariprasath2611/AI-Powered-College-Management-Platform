@@ -1,0 +1,301 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  STUDENT
+  FACULTY
+  ADMIN
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+}
+
+enum ExamType {
+  INTERNAL_1
+  INTERNAL_2
+  INTERNAL_3
+  SEMESTER
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SHORTLISTED
+  INTERVIEWING
+  OFFERED
+  REJECTED
+}
+
+enum DriveStatus {
+  UPCOMING
+  COMPLETED
+  CANCELLED
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  GRADED
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  firebaseUid  String    @unique
+  role         Role
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  student      Student?
+  faculty      Faculty?
+  admin        Admin?
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String?
+}
+
+model Department {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  code      String    @unique
+  students  Student[]
+  faculty   Faculty[]
+  subjects  Subject[]
+}
+
+model Student {
+  id                String               @id @default(uuid())
+  userId            String               @unique
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registerNumber    String               @unique
+  rollNumber        String               @unique
+  name              String
+  dob               DateTime
+  phone             String
+  address           String
+  admissionYear     Int
+  currentSemester   Int
+  currentSection    String
+  departmentId      String
+  department        Department           @relation(fields: [departmentId], references: [id])
+  resumeUrl         String?
+  
+  attendance        Attendance[]
+  submissions       Submission[]
+  marks             Mark[]
+  applications      PlacementApplication[]
+  registrations     EventRegistration[]
+  resumeAnalysis    ResumeAnalysis[]
+  interviewRecords  InterviewRecord[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+}
+
+model Faculty {
+  id                String               @id @default(uuid())
+  userId            String               @unique
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeId        String               @unique
+  name              String
+  designation       String
+  phone             String
+  address           String
+  departmentId      String
+  department        Department           @relation(fields: [departmentId], references: [id])
+  
+  assignedSubjects  FacultySubject[]
+  markedAttendance  Attendance[]         @relation("MarkedByFaculty")
+  gradedSubmissions Submission[]         @relation("GradedByFaculty")
+  createdAssignments Assignment[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+}
+
+model Subject {
+  id           String           @id @default(uuid())
+  name         String
+  code         String           @unique
+  departmentId String
+  department   Department       @relation(fields: [departmentId], references: [id])
+  semester     Int
+  credits      Int
+  
+  faculty      FacultySubject[]
+  attendance   Attendance[]
+  assignments  Assignment[]
+  marks        Mark[]
+}
+
+model FacultySubject {
+  id           String   @id @default(uuid())
+  facultyId    String
+  faculty      Faculty  @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subject      Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  section      String
+  academicYear String
+  
+  @@unique([facultyId, subjectId, section, academicYear])
+}
+
+model Attendance {
+  id                 String           @id @default(uuid())
+  date               DateTime         @db.Date
+  period             Int
+  studentId          String
+  student            Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId          String
+  subject            Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  status             AttendanceStatus
+  markedByFacultyId  String
+  markedByFaculty    Faculty          @relation("MarkedByFaculty", fields: [markedByFacultyId], references: [id])
+  createdAt          DateTime         @default(now())
+
+  @@unique([date, period, studentId, subjectId])
+}
+
+model Assignment {
+  id           String       @id @default(uuid())
+  title        String
+  description  String
+  dueDate      DateTime
+  fileUrl      String?
+  subjectId    String
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  section      String
+  facultyId    String
+  faculty      Faculty      @relation(fields: [facultyId], references: [id])
+  submissions  Submission[]
+  createdAt     DateTime     @default(now())
+}
+
+model Submission {
+  id             String           @id @default(uuid())
+  assignmentId   String
+  assignment     Assignment       @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId      String
+  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fileUrl        String
+  submittedAt    DateTime         @default(now())
+  status         SubmissionStatus @default(SUBMITTED)
+  grade          String?
+  feedback       String?
+  gradedById     String?
+  gradedBy       Faculty?         @relation("GradedByFaculty", fields: [gradedById], references: [id])
+  
+  @@unique([assignmentId, studentId])
+}
+
+model Mark {
+  id             String    @id @default(uuid())
+  studentId      String
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subjectId      String
+  subject        Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  type           ExamType
+  marksObtained  Float
+  maxMarks       Float
+  examDate       DateTime?
+
+  @@unique([studentId, subjectId, type])
+}
+
+model Company {
+  id           String           @id @default(uuid())
+  name         String           @unique
+  website      String?
+  industry     String?
+  contactEmail String
+  description  String?
+  drives       PlacementDrive[]
+}
+
+model PlacementDrive {
+  id                  String                 @id @default(uuid())
+  companyId           String
+  company             Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobTitle            String
+  description         String
+  date                DateTime
+  eligibilityCriteria String
+  salaryPackage       String
+  status              DriveStatus            @default(UPCOMING)
+  applications        PlacementApplication[]
+  createdAt           DateTime               @default(now())
+}
+
+model PlacementApplication {
+  id          String            @id @default(uuid())
+  driveId     String
+  drive       PlacementDrive    @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status      ApplicationStatus @default(APPLIED)
+  resumeUrl   String?
+  appliedAt   DateTime          @default(now())
+
+  @@unique([driveId, studentId])
+}
+
+model Event {
+  id               String              @id @default(uuid())
+  title            String
+  description      String
+  date             DateTime
+  venue            String
+  qrCodeUrl        String?
+  category         String
+  maxRegistrations Int
+  registrations    EventRegistration[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+}
+
+model EventRegistration {
+  id             String    @id @default(uuid())
+  eventId        String
+  event          Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  studentId      String
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  registeredAt   DateTime  @default(now())
+  checkedIn      Boolean   @default(false)
+  checkedInAt    DateTime?
+  certificateUrl String?
+
+  @@unique([eventId, studentId])
+}
+
+model ResumeAnalysis {
+  id              String   @id @default(uuid())
+  studentId       String
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  atsScore        Int
+  skillGap        Json
+  suggestions     Json
+  readinessScore  Int
+  createdAt       DateTime @default(now())
+}
+
+model InterviewRecord {
+  id                 String   @id @default(uuid())
+  studentId          String
+  student            Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  jobTitle           String
+  questions          Json
+  answers            Json
+  feedback           String
+  communicationScore Int
+  confidenceScore    Int
+  createdAt          DateTime @default(now())
+}
