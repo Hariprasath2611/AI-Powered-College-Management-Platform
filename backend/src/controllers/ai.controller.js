@@ -17,7 +17,7 @@ try {
 const analyzeResume = async (req, res, next) => {
   try {
     const studentId = req.user.profileId;
-    const { resumeText } = req.body; // In a production app, extract text from PDF file upload
+    const { resumeText } = req.body; 
 
     const contentToParse = resumeText || "Skills: JavaScript, Node.js, React.js. Experience: Built college website. Education: B.E. Computer Science.";
 
@@ -41,7 +41,6 @@ const analyzeResume = async (req, res, next) => {
 
       analysisResult = JSON.parse(response.choices[0].message.content);
     } else {
-      // Realistic Mock Response
       analysisResult = {
         atsScore: 78,
         skillGap: ["Docker", "Kubernetes", "TypeScript", "CI/CD Pipelines", "System Design"],
@@ -54,18 +53,24 @@ const analyzeResume = async (req, res, next) => {
       };
     }
 
-    // Save to DB
+    // Save to DB (Stringified JSON)
     const saved = await prisma.resumeAnalysis.create({
       data: {
         studentId,
         atsScore: analysisResult.atsScore,
-        skillGap: analysisResult.skillGap,
-        suggestions: analysisResult.suggestions,
+        skillGap: JSON.stringify(analysisResult.skillGap),
+        suggestions: JSON.stringify(analysisResult.suggestions),
         readinessScore: analysisResult.readinessScore
       }
     });
 
-    res.status(200).json({ analysis: saved });
+    res.status(200).json({
+      analysis: {
+        ...saved,
+        skillGap: JSON.parse(saved.skillGap),
+        suggestions: JSON.parse(saved.suggestions)
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -97,7 +102,6 @@ const startInterview = async (req, res, next) => {
       const parsed = JSON.parse(response.choices[0].message.content);
       questions = parsed.questions;
     } else {
-      // Mock Interview Questions based on Title
       const techRole = jobTitle ? jobTitle.toLowerCase() : 'software engineer';
       if (techRole.includes('frontend') || techRole.includes('react')) {
         questions = [
@@ -128,7 +132,7 @@ const startInterview = async (req, res, next) => {
 const submitInterview = async (req, res, next) => {
   try {
     const studentId = req.user.profileId;
-    const { jobTitle, questions, answers } = req.body; // answers: [{question, answer}]
+    const { jobTitle, questions, answers } = req.body; 
 
     let evaluation = null;
 
@@ -150,7 +154,6 @@ const submitInterview = async (req, res, next) => {
 
       evaluation = JSON.parse(response.choices[0].message.content);
     } else {
-      // Mock evaluation
       evaluation = {
         feedback: "Good attempt! Technical logic was clear and sound. However, try structuring your answers using the STAR (Situation, Task, Action, Result) method, particularly in HR situations to exhibit problem-solving confidence.",
         communicationScore: 84,
@@ -158,20 +161,25 @@ const submitInterview = async (req, res, next) => {
       };
     }
 
-    // Save record
     const record = await prisma.interviewRecord.create({
       data: {
         studentId,
         jobTitle: jobTitle || "Software Engineer",
-        questions: questions,
-        answers: answers,
+        questions: JSON.stringify(questions),
+        answers: JSON.stringify(answers),
         feedback: evaluation.feedback,
         communicationScore: evaluation.communicationScore,
         confidenceScore: evaluation.confidenceScore
       }
     });
 
-    res.status(200).json({ record });
+    res.status(200).json({
+      record: {
+        ...record,
+        questions: JSON.parse(record.questions),
+        answers: JSON.parse(record.answers)
+      }
+    });
   } catch (error) {
     next(error);
   }
@@ -218,7 +226,6 @@ const recommendCareer = async (req, res, next) => {
 
       recommendation = JSON.parse(response.choices[0].message.content);
     } else {
-      // Mock career paths
       recommendation = {
         careerPaths: [
           "Full Stack Developer (Web & Mobile)",
